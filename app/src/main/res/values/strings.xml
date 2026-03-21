@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">sbs</string>
+    <string name="login_activity_placeholder">Login Activity Placeholder</string>
+    <string name="sign_up_activity_placeholder">Sign Up Activity Placeholder</string>
+</resources>
