@@ -1,6 +1,7 @@
 package com.sbs.ui;
 
 import android.os.Bundle;
+import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
@@ -22,10 +23,35 @@ public class SignUpActivity extends AppCompatActivity {
         binding = ActivitySignUpBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        ViewCompat.setOnApplyWindowInsetsListener(binding.main, (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
+        binding.btnCreateAccount.setOnClickListener(v -> {
+            String username = binding.etUsername.getText().toString().trim();
+            String password = binding.etPassword.getText().toString().trim();
+
+            if (username.isEmpty()) {
+                binding.etUsername.setError("Enter username");
+                binding.etUsername.requestFocus();
+                return;
+            }
+
+            if (password.isEmpty()) {
+                binding.etPassword.setError("Enter password");
+                binding.etPassword.requestFocus();
+                return;
+            }
+
+            Toast.makeText(this, "Sign up UI ready", Toast.LENGTH_SHORT).show();
         });
+
+        binding.tvBackToLogin.setOnClickListener(v -> finish());
+
+        binding.tvNeedHelp.setOnClickListener(v ->
+                Toast.makeText(this, "Help flow not implemented yet", Toast.LENGTH_SHORT).show());
+
+
+//        ViewCompat.setOnApplyWindowInsetsListener(binding.main, (v, insets) -> {
+//            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+//            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+//            return insets;
+//        });
     }
 }
