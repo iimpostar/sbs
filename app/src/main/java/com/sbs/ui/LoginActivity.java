@@ -5,11 +5,8 @@ import android.os.Bundle;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
-import com.sbs.R;
+import com.sbs.SessionManager;
 import android.widget.Toast;
 import com.sbs.databinding.ActivityLoginBinding;
 
@@ -40,19 +37,17 @@ public class LoginActivity extends AppCompatActivity {
                 return;
             }
 
-            Toast.makeText(this, "Login UI ready", Toast.LENGTH_SHORT).show();
+            SessionManager sessionManager = new SessionManager(this);
+            sessionManager.setLoggedIn(true);
+
+            startActivity(new Intent(LoginActivity.this, DashboardActivity.class));
+            finish();
         });
 
         binding.tvCreateAccount.setOnClickListener(v ->
                 startActivity(new Intent(LoginActivity.this, SignUpActivity.class)));
 
         binding.tvNeedHelp.setOnClickListener(v ->
-                Toast.makeText(this, "Help flow not implemented yet", Toast.LENGTH_SHORT).show());
-
-//        ViewCompat.setOnApplyWindowInsetsListener(binding.main, (v, insets) -> {
-//            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-//            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-//            return insets;
-//        });
+                Toast.makeText(this, "Help flow currently on a filler arc! \uD83D\uDE11", Toast.LENGTH_SHORT).show());
     }
 }

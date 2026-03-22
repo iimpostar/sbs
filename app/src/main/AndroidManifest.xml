@@ -12,6 +12,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Sbs">
         <activity
+            android:name=".ui.DashboardActivity"
+            android:exported="false" />
+        <activity
             android:name=".ui.SignUpActivity"
             android:exported="false" />
         <activity
