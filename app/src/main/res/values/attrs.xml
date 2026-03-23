@@ -1,0 +1,7 @@
+<resources>
+    <attr name="menuBackground" format="color" />
+    <attr name="menuTextColor" format="color" />
+    <attr name="menuSecondaryTextColor" format="color" />
+    <attr name="menuIconTint" format="color" />
+    <attr name="menuDividerColor" format="color" />
+</resources>
