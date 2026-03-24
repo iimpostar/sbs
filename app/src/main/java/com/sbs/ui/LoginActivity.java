@@ -10,6 +10,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
 import com.google.firebase.auth.FirebaseAuthInvalidUserException;
 import com.sbs.databinding.ActivityLoginBinding;
+import com.sbs.notifications.FcmTokenManager;
 
 public class LoginActivity extends BaseActivity {
     private ActivityLoginBinding binding;
@@ -61,6 +62,7 @@ public class LoginActivity extends BaseActivity {
 
                     if (task.isSuccessful()) {
                         Toast.makeText(this, "Welcome back!", Toast.LENGTH_SHORT).show();
+                        FcmTokenManager.syncCurrentToken(this);
                         Intent intent = new Intent(LoginActivity.this, DashboardActivity.class);
                         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                         startActivity(intent);

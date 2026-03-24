@@ -29,12 +29,13 @@ import com.google.firebase.messaging.FirebaseMessaging;
 import com.sbs.R;
 import com.sbs.SessionManager;
 import com.sbs.data.AppSettingsManager;
+import com.sbs.data.SightingRecord;
+import com.sbs.data.SightingStore;
+import com.sbs.data.SightingSyncManager;
 import com.sbs.databinding.ActivityDashboardBinding;
+import com.sbs.notifications.FcmTokenManager;
 import com.sbs.utils.NetworkStatusMonitor;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 import org.osmdroid.api.IMapController;
 import org.osmdroid.config.Configuration;
 import org.osmdroid.events.MapEventsReceiver;
@@ -53,31 +54,17 @@ public class DashboardActivity extends BaseActivity {
     private ActivityDashboardBinding binding;
     private MyLocationNewOverlay locationOverlay;
     private boolean restoredMapState = false;
+    private Marker pendingSightingMarker;
+    private boolean lastNetworkOnline = false;
+    private final List<Marker> savedSightingMarkers = new ArrayList<>();
 
     private static final String PREFS_DASHBOARD_STATE = "sbs_dashboard_state";
     private static final String KEY_MAP_LAT = "map_lat";
     private static final String KEY_MAP_LNG = "map_lng";
     private static final String KEY_MAP_ZOOM = "map_zoom";
-    private static final String KEY_USER_MARKERS = "user_markers";
-
-    private final List<SightingMarkerData> userPlacedMarkers = new ArrayList<>();
 
     private AppSettingsManager appSettingsManager;
     private NetworkStatusMonitor networkStatusMonitor;
-
-    private static class SightingMarkerData {
-        final double lat;
-        final double lng;
-        final String title;
-        final String description;
-
-        SightingMarkerData(double lat, double lng, String title, String description) {
-            this.lat = lat;
-            this.lng = lng;
-            this.title = title;
-            this.description = description;
-        }
-    }
 
     private final ActivityResultLauncher<String[]> locationPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> {
@@ -103,6 +90,27 @@ public class DashboardActivity extends BaseActivity {
                 }
             });
 
+    private final ActivityResultLauncher<Intent> sightingEditorLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+                if (pendingSightingMarker != null) {
+                    binding.mapView.getOverlays().remove(pendingSightingMarker);
+                    pendingSightingMarker = null;
+                    binding.mapView.invalidate();
+                }
+
+                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                    String localId = result.getData().getStringExtra(
+                            SightingEditorActivity.EXTRA_SIGHTING_ID
+                    );
+                    if (localId != null) {
+                        SightingRecord record = SightingStore.getById(this, localId);
+                        if (record != null) {
+                            addSightingMarker(record);
+                        }
+                    }
+                }
+            });
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         // Initialize osmdroid configuration before inflating layout
@@ -118,6 +126,7 @@ public class DashboardActivity extends BaseActivity {
         binding = ActivityDashboardBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
+        FcmTokenManager.syncCurrentToken(this);
         bindCurrentUserFooter();
 
         // Capture original padding for sidePanel to preserve layout design
@@ -150,6 +159,7 @@ public class DashboardActivity extends BaseActivity {
         setupMap();
         setupMyLocationOverlay();
         setupMapInteractions();
+        renderStoredSightings();
 
         if (appSettingsManager.isShowSampleMarkersEnabled()) {
             loadSampleSightings();
@@ -207,6 +217,7 @@ public class DashboardActivity extends BaseActivity {
 
         switch (alertType) {
             case "sighting":
+            case "new_sighting":
                 Toast.makeText(this, "New sighting alert received", Toast.LENGTH_SHORT).show();
                 break;
 
@@ -284,7 +295,7 @@ public class DashboardActivity extends BaseActivity {
 
             @Override
             public boolean longPressHelper(GeoPoint p) {
-                dropSightingMarker(p, "New Sighting", "Long-pressed map point", true);
+                dropPendingSightingMarker(p);
                 return true;
             }
         };
@@ -315,7 +326,7 @@ public class DashboardActivity extends BaseActivity {
         );
     }
 
-    private void dropSightingMarker(GeoPoint point, String title, String description, boolean persistAsUserMarker) {
+    private void dropSightingMarker(GeoPoint point, String title, String description, boolean addToSavedList) {
         Marker marker = new Marker(binding.mapView);
         marker.setPosition(point);
         marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM);
@@ -331,22 +342,91 @@ public class DashboardActivity extends BaseActivity {
             return true;
         });
 
-        binding.mapView.getOverlays().add(marker);
-
-        if (persistAsUserMarker) {
-            userPlacedMarkers.add(new SightingMarkerData(
-                    point.getLatitude(),
-                    point.getLongitude(),
-                    title,
-                    description
-            ));
+        if (addToSavedList) {
+            savedSightingMarkers.add(marker);
         }
+        binding.mapView.getOverlays().add(marker);
 
         binding.mapView.invalidate();
     }
 
-    private void dropSightingMarker(GeoPoint point, String title, String description) {
-        dropSightingMarker(point, title, description, false);
+    private void dropPendingSightingMarker(GeoPoint point) {
+        if (pendingSightingMarker != null) {
+            binding.mapView.getOverlays().remove(pendingSightingMarker);
+        }
+
+        Marker marker = new Marker(binding.mapView);
+        marker.setPosition(point);
+        marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM);
+        marker.setIcon(ContextCompat.getDrawable(this, android.R.drawable.ic_input_add));
+        marker.setTitle("New sighting");
+        marker.setOnMarkerClickListener((m, mapView) -> {
+            openSightingEditor(point);
+            return true;
+        });
+
+        pendingSightingMarker = marker;
+        binding.mapView.getOverlays().add(marker);
+        binding.mapView.invalidate();
+        Toast.makeText(this, "Tap the pin to add sighting details", Toast.LENGTH_SHORT).show();
+    }
+
+    private void openSightingEditor(GeoPoint point) {
+        Intent intent = new Intent(this, SightingEditorActivity.class);
+        intent.putExtra(SightingEditorActivity.EXTRA_LAT, point.getLatitude());
+        intent.putExtra(SightingEditorActivity.EXTRA_LNG, point.getLongitude());
+        sightingEditorLauncher.launch(intent);
+    }
+
+    private void renderStoredSightings() {
+        for (Marker marker : savedSightingMarkers) {
+            binding.mapView.getOverlays().remove(marker);
+        }
+        savedSightingMarkers.clear();
+
+        for (SightingRecord record : SightingStore.getAll(this)) {
+            addSightingMarker(record);
+        }
+        binding.mapView.invalidate();
+    }
+
+    private void addSightingMarker(SightingRecord record) {
+        Marker marker = new Marker(binding.mapView);
+        marker.setPosition(new GeoPoint(record.lat, record.lng));
+        marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM);
+        marker.setTitle(record.title);
+        marker.setSubDescription(buildSightingDescription(record));
+        marker.setIcon(resolveSightingIcon(record));
+        marker.setOnMarkerClickListener((m, mapView) -> {
+            m.showInfoWindow();
+            return true;
+        });
+
+        savedSightingMarkers.add(marker);
+        binding.mapView.getOverlays().add(marker);
+    }
+
+    private String buildSightingDescription(SightingRecord record) {
+        String statusLabel = getString(R.string.pending_sync);
+        if (SightingStore.STATUS_SYNCED.equals(record.syncStatus)) {
+            statusLabel = getString(R.string.synced);
+        } else if (SightingStore.STATUS_FAILED.equals(record.syncStatus)) {
+            statusLabel = getString(R.string.sync_failed);
+        }
+        return (record.notes == null ? "" : record.notes + "\n")
+                + "Lat: " + record.lat
+                + "\nLng: " + record.lng
+                + "\nStatus: " + statusLabel;
+    }
+
+    private android.graphics.drawable.Drawable resolveSightingIcon(SightingRecord record) {
+        if (SightingStore.STATUS_SYNCED.equals(record.syncStatus)) {
+            return ContextCompat.getDrawable(this, R.drawable.ic_marker_user);
+        }
+        if (SightingStore.STATUS_FAILED.equals(record.syncStatus)) {
+            return ContextCompat.getDrawable(this, android.R.drawable.ic_dialog_alert);
+        }
+        return ContextCompat.getDrawable(this, android.R.drawable.ic_popup_sync);
     }
 
     private void saveDashboardState() {
@@ -361,21 +441,6 @@ public class DashboardActivity extends BaseActivity {
 
         editor.putString(KEY_MAP_ZOOM, String.valueOf(binding.mapView.getZoomLevelDouble()));
 
-        JSONArray markersArray = new JSONArray();
-        for (SightingMarkerData marker : userPlacedMarkers) {
-            try {
-                JSONObject obj = new JSONObject();
-                obj.put("lat", marker.lat);
-                obj.put("lng", marker.lng);
-                obj.put("title", marker.title);
-                obj.put("description", marker.description);
-                markersArray.put(obj);
-            } catch (JSONException e) {
-                Log.e("DashboardState", "Failed to save marker", e);
-            }
-        }
-
-        editor.putString(KEY_USER_MARKERS, markersArray.toString());
         editor.apply();
     }
 
@@ -406,26 +471,6 @@ public class DashboardActivity extends BaseActivity {
             }
         }
 
-        String markersJson = prefs.getString(KEY_USER_MARKERS, null);
-        if (markersJson != null && !markersJson.isEmpty()) {
-            try {
-                JSONArray markersArray = new JSONArray(markersJson);
-                userPlacedMarkers.clear();
-
-                for (int i = 0; i < markersArray.length(); i++) {
-                    JSONObject obj = markersArray.getJSONObject(i);
-
-                    double lat = obj.getDouble("lat");
-                    double lng = obj.getDouble("lng");
-                    String title = obj.getString("title");
-                    String description = obj.getString("description");
-
-                    dropSightingMarker(new GeoPoint(lat, lng), title, description, true);
-                }
-            } catch (JSONException e) {
-                Log.e("DashboardState", "Failed to restore markers", e);
-            }
-        }
     }
 
     private void setupClickListeners() {
@@ -442,13 +487,7 @@ public class DashboardActivity extends BaseActivity {
 
         binding.menuNewSighting.setOnClickListener(v -> {
             hideMenu();
-            Intent intent = new Intent(DashboardActivity.this, NewSightingActivity.class);
-            GeoPoint center = (GeoPoint) binding.mapView.getMapCenter();
-            if (center != null) {
-                intent.putExtra("lat", center.getLatitude());
-                intent.putExtra("lng", center.getLongitude());
-            }
-            startActivity(intent);
+            startActivity(new Intent(DashboardActivity.this, SightingsActivity.class));
         });
 
         binding.menuHealthObservation.setOnClickListener(v -> {
@@ -617,6 +656,10 @@ public class DashboardActivity extends BaseActivity {
         if (locationOverlay != null) {
             locationOverlay.enableMyLocation();
         }
+        if (SightingSyncManager.isOnline(this)) {
+            SightingSyncManager.syncPendingSightings(this);
+        }
+        renderStoredSightings();
     }
 
     @Override
@@ -636,6 +679,11 @@ public class DashboardActivity extends BaseActivity {
             networkStatusMonitor.start((label, backgroundRes) -> runOnUiThread(() -> {
                 binding.tvNetworkStatus.setText(label);
                 binding.tvNetworkStatus.setBackgroundResource(backgroundRes);
+                boolean onlineNow = "Online".equals(label);
+                if (onlineNow && !lastNetworkOnline) {
+                    SightingSyncManager.syncPendingSightings(this);
+                }
+                lastNetworkOnline = onlineNow;
             }));
         }
     }

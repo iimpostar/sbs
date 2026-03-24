@@ -12,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.sbs.R;
 import com.sbs.data.FieldDataStore;
+import com.sbs.data.SightingStore;
 
 public class SyncStatusActivity extends AppCompatActivity {
 
@@ -46,7 +47,7 @@ public class SyncStatusActivity extends AppCompatActivity {
 
     private void refreshStatus() {
         tvPendingTotal.setText(String.valueOf(FieldDataStore.getPendingItemCount(this)));
-        tvSightingsCount.setText(String.valueOf(FieldDataStore.getSightingsCount(this)));
+        tvSightingsCount.setText(String.valueOf(SightingStore.getTotalCount(this)));
         tvHealthCount.setText(String.valueOf(FieldDataStore.getHealthObservationCount(this)));
         tvLastSync.setText(FieldDataStore.getLastSync(this));
         tvNetworkStatus.setText(isOnline() ? "Online" : "Offline");

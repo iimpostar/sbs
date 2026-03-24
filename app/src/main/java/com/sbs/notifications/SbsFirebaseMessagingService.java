@@ -17,6 +17,8 @@ import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 import com.sbs.R;
 import com.sbs.ui.DashboardActivity;
+import com.sbs.ui.HealthObservationActivity;
+import com.sbs.ui.SyncStatusActivity;
 
 public class SbsFirebaseMessagingService extends FirebaseMessagingService {
 
@@ -27,6 +29,7 @@ public class SbsFirebaseMessagingService extends FirebaseMessagingService {
     public void onNewToken(String token) {
         super.onNewToken(token);
         Log.d(TAG, "FCM token: " + token);
+        FcmTokenManager.registerTokenIfPossible(this, token);
     }
 
     @Override
@@ -60,8 +63,14 @@ public class SbsFirebaseMessagingService extends FirebaseMessagingService {
 
         createNotificationChannel();
 
-        Intent intent = new Intent(this, DashboardActivity.class);
+        Intent intent = buildIntentForType(type);
         intent.putExtra("alert_type", type);
+        if (remoteMessage.getData().get("entityId") != null) {
+            intent.putExtra("entity_id", remoteMessage.getData().get("entityId"));
+        }
+        if (remoteMessage.getData().get("authorId") != null) {
+            intent.putExtra("author_id", remoteMessage.getData().get("authorId"));
+        }
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
 
         PendingIntent pendingIntent = PendingIntent.getActivity(
@@ -102,6 +111,19 @@ public class SbsFirebaseMessagingService extends FirebaseMessagingService {
             if (manager != null) {
                 manager.createNotificationChannel(channel);
             }
+        }
+    }
+
+    private Intent buildIntentForType(String type) {
+        switch (type) {
+            case "health_observation":
+                return new Intent(this, HealthObservationActivity.class);
+            case "sync_success":
+            case "sync_failed":
+                return new Intent(this, SyncStatusActivity.class);
+            case "new_sighting":
+            default:
+                return new Intent(this, DashboardActivity.class);
         }
     }
 }

@@ -5,6 +5,10 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.FieldValue;
+import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
@@ -46,8 +50,40 @@ public class HealthObservationActivity extends AppCompatActivity {
         }
 
         FieldDataStore.saveHealthObservation(this, subject, severity, findings, actionTaken);
+        saveObservationToFirestore(subject, severity, findings, actionTaken);
         Toast.makeText(this, "Health observation saved locally", Toast.LENGTH_SHORT).show();
         finish();
+    }
+
+    private void saveObservationToFirestore(
+            String subject,
+            String severity,
+            String findings,
+            String actionTaken
+    ) {
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+        String authorId = user != null ? user.getUid() : null;
+        String authorName = user != null ? user.getDisplayName() : null;
+        String authorEmail = user != null ? user.getEmail() : null;
+
+        if (authorName == null && authorEmail != null) {
+            int atIndex = authorEmail.indexOf('@');
+            authorName = atIndex > 0 ? authorEmail.substring(0, atIndex) : authorEmail;
+        }
+
+        java.util.Map<String, Object> data = new java.util.HashMap<>();
+        data.put("subject", subject);
+        data.put("severity", severity);
+        data.put("findings", findings);
+        data.put("actionTaken", actionTaken);
+        data.put("timestamp", System.currentTimeMillis());
+        data.put("authorId", authorId);
+        data.put("authorName", authorName);
+        data.put("createdAt", FieldValue.serverTimestamp());
+
+        FirebaseFirestore.getInstance()
+                .collection("health_observations")
+                .add(data);
     }
 
     private String valueOf(TextInputEditText input) {

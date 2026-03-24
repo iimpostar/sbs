@@ -46,6 +46,7 @@ dependencies {
     implementation(libs.material)
     implementation(libs.activity)
     implementation(libs.constraintlayout)
+    implementation("androidx.recyclerview:recyclerview:1.4.0")
 
     // Firebase
     implementation(platform("com.google.firebase:firebase-bom:34.11.0"))

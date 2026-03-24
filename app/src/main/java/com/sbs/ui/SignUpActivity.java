@@ -12,6 +12,7 @@ import com.google.firebase.auth.FirebaseAuthWeakPasswordException;
 import com.google.firebase.auth.UserProfileChangeRequest;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.sbs.databinding.ActivitySignUpBinding;
+import com.sbs.notifications.FcmTokenManager;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -108,6 +109,7 @@ public class SignUpActivity extends BaseActivity {
                 .set(user)
                 .addOnSuccessListener(aVoid -> {
                     Toast.makeText(this, "Account created successfully", Toast.LENGTH_SHORT).show();
+                    FcmTokenManager.syncCurrentToken(this);
                     navigateToDashboard();
                 })
                 .addOnFailureListener(e -> {

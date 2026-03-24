@@ -43,7 +43,7 @@ public final class FieldDataStore {
     }
 
     public static int getSightingsCount(Context context) {
-        return getArray(context, KEY_SIGHTINGS).length();
+        return SightingStore.getTotalCount(context);
     }
 
     public static int getHealthObservationCount(Context context) {
@@ -51,7 +51,7 @@ public final class FieldDataStore {
     }
 
     public static int getPendingItemCount(Context context) {
-        return getSightingsCount(context) + getHealthObservationCount(context);
+        return SightingStore.getPendingCount(context) + getHealthObservationCount(context);
     }
 
     public static String getLastSync(Context context) {

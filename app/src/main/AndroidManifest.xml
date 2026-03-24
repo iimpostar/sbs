@@ -30,7 +30,10 @@
             android:name=".ui.DashboardActivity"
             android:exported="false" />
         <activity
-            android:name=".ui.NewSightingActivity"
+            android:name=".ui.SightingsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.SightingEditorActivity"
             android:exported="false" />
         <activity
             android:name=".ui.HealthObservationActivity"

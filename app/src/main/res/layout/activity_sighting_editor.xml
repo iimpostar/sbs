@@ -11,7 +11,7 @@
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         android:background="?attr/toolbarBackground"
-        android:title="New Sighting"
+        android:title="@string/new_sighting"
         android:titleTextColor="?attr/primaryTextColor"
         app:navigationIcon="@android:drawable/ic_menu_revert"
         app:navigationIconTint="?attr/iconTintColor" />
@@ -29,7 +29,7 @@
             <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="Sighting title">
+                android:hint="@string/sighting_title">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etSightingTitle"
@@ -41,7 +41,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:hint="Latitude">
+                android:hint="@string/latitude">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etLatitude"
@@ -54,7 +54,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:hint="Longitude">
+                android:hint="@string/longitude">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etLongitude"
@@ -67,7 +67,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:hint="Notes">
+                android:hint="@string/notes">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etNotes"
@@ -84,7 +84,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
                 android:layout_marginTop="20dp"
-                android:text="Save Sighting" />
+                android:text="@string/save_sighting" />
         </LinearLayout>
     </ScrollView>
 </LinearLayout>
