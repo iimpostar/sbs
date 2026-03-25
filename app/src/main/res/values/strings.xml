@@ -1,14 +1,7 @@
 <resources>
     <string name="app_name">Silver Back Sentry</string>
     <string name="silver_back_sentry">Silver Back Sentry</string>
-    <string name="username">Username</string>
     <string name="password">Password</string>
-    <string name="get_started">Get Started</string>
-    <string name="create_account">Create Account</string>
-    <string name="need_help">Need Help?</string>
-    <string name="login_screen_bg">Login background</string>
-    <string name="username_icon">Username icon</string>
-    <string name="password_icon">Password icon</string>
     <string name="open_menu">Open menu</string>
     <string name="close_menu">Close menu</string>
     <string name="profile">Profile</string>

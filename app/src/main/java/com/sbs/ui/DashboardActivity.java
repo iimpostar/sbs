@@ -537,9 +537,12 @@ public class DashboardActivity extends BaseActivity {
             photoUrl = user.getPhotoUrl();
         }
 
-        String resolvedName = resolveDisplayName(displayName, email);
-        binding.tvUserName.setText(resolvedName);
+        binding.tvUserName.setText(resolveDisplayName(displayName, email));
+        bindUserAvatar(photoUrl);
+        refreshDisplayNameFromFirestoreIfNeeded(user, displayName);
+    }
 
+    private void bindUserAvatar(Uri photoUrl) {
         if (photoUrl != null) {
             Glide.with(this)
                     .load(photoUrl)
@@ -549,21 +552,25 @@ public class DashboardActivity extends BaseActivity {
         } else {
             binding.ivUserAvatar.setImageResource(R.drawable.bg_dashboard_avatar);
         }
+    }
 
-        if (user != null && TextUtils.isEmpty(displayName)) {
-            FirebaseFirestore.getInstance()
-                    .collection("users")
-                    .document(user.getUid())
-                    .get()
-                    .addOnSuccessListener(snapshot -> {
-                        String fullName = snapshot.getString("fullName");
-                        if (!TextUtils.isEmpty(fullName)) {
-                            binding.tvUserName.setText(fullName);
-                        }
-                    })
-                    .addOnFailureListener(e ->
-                            Log.w("DashboardUser", "Failed to load user profile", e));
+    private void refreshDisplayNameFromFirestoreIfNeeded(FirebaseUser user, String displayName) {
+        if (user == null || !TextUtils.isEmpty(displayName)) {
+            return;
         }
+
+        FirebaseFirestore.getInstance()
+                .collection("users")
+                .document(user.getUid())
+                .get()
+                .addOnSuccessListener(snapshot -> {
+                    String fullName = snapshot.getString("fullName");
+                    if (!TextUtils.isEmpty(fullName)) {
+                        binding.tvUserName.setText(fullName);
+                    }
+                })
+                .addOnFailureListener(e ->
+                        Log.w("DashboardUser", "Failed to load user profile", e));
     }
 
     private String resolveDisplayName(String displayName, String email) {
