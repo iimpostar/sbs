@@ -47,6 +47,7 @@ dependencies {
     implementation(libs.activity)
     implementation(libs.constraintlayout)
     implementation("androidx.recyclerview:recyclerview:1.4.0")
+    implementation("androidx.core:core-splashscreen:1.0.1")
 
     // Firebase
     implementation(platform("com.google.firebase:firebase-bom:34.11.0"))
@@ -54,12 +55,10 @@ dependencies {
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.android.gms:play-services-auth:21.4.0")
 
     // osmdroid for OpenStreetMap
     implementation("org.osmdroid:osmdroid-android:6.1.20")
-
-    // ML Kit on-device image labeling
-    implementation("com.google.mlkit:image-labeling:17.0.9")
 
     // Lightweight image loading for profile avatars
     implementation("com.github.bumptech.glide:glide:4.16.0")
