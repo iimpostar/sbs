@@ -41,8 +41,13 @@ public final class RealtimeSyncManager {
     }
 
     public void start() {
-        String userId = FirebaseAuth.getInstance().getUid();
+        RangerSessionManager sessionManager = new RangerSessionManager(appContext);
+        String userId = sessionManager.getActiveRangerId();
         if (TextUtils.isEmpty(userId)) {
+            stop();
+            return;
+        }
+        if (FirebaseAuth.getInstance().getUid() == null || !userId.equals(FirebaseAuth.getInstance().getUid())) {
             stop();
             return;
         }
@@ -78,7 +83,7 @@ public final class RealtimeSyncManager {
                             sightings.add(new SightingEntity(
                                     recordId,
                                     doc.getId(),
-                                    authorId == null ? "" : authorId,
+                                    userId,
                                     authorDisplayName,
                                     title,
                                     summary,
@@ -97,7 +102,7 @@ public final class RealtimeSyncManager {
                             patrolLogs.add(new PatrolLogEntity(
                                     recordId,
                                     doc.getId(),
-                                    authorId == null ? "" : authorId,
+                                    userId,
                                     authorDisplayName,
                                     title,
                                     summary,
@@ -111,6 +116,7 @@ public final class RealtimeSyncManager {
                         } else if (RecordType.HEALTH_OBSERVATION.equals(type)) {
                             healthObservations.add(new HealthObservationEntity(
                                     recordId,
+                                    userId,
                                     doc.getId(),
                                     authorId,
                                     authorDisplayName,
@@ -144,6 +150,7 @@ public final class RealtimeSyncManager {
                     for (QueryDocumentSnapshot doc : snapshots) {
                         items.add(new AppNotificationEntity(
                                 doc.getId(),
+                                userId,
                                 userId,
                                 doc.getString("actorUserId"),
                                 doc.getString("actorName"),

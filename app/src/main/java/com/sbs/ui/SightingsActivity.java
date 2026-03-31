@@ -10,11 +10,11 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.firebase.auth.FirebaseAuth;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.sbs.R;
 import com.sbs.data.AppRepository;
+import com.sbs.data.RangerSessionManager;
 import com.sbs.data.SightingRecord;
 
 public class SightingsActivity extends BaseActivity implements SightingsAdapter.SightingActionListener {
@@ -35,7 +35,7 @@ public class SightingsActivity extends BaseActivity implements SightingsAdapter.
         applyWindowInsets(findViewById(R.id.toolbar).getRootView());
 
         repository = AppRepository.getInstance(this);
-        currentUserId = FirebaseAuth.getInstance().getUid();
+        currentUserId = new RangerSessionManager(this).getActiveRangerId();
         if (currentUserId == null) {
             finish();
             return;

@@ -13,6 +13,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.sbs.data.AppRepository;
 import com.sbs.data.RecordType;
+import com.sbs.data.RangerSessionManager;
 import com.sbs.data.SyncState;
 import com.sbs.data.local.AppNotificationEntity;
 import com.sbs.data.local.HealthObservationEntity;
@@ -33,6 +34,11 @@ public final class FetchRemoteSightingsWorker extends Worker {
     public Result doWork() {
         try {
             AppRepository repository = AppRepository.getInstance(getApplicationContext());
+            RangerSessionManager sessionManager = new RangerSessionManager(getApplicationContext());
+            String rangerId = sessionManager.getActiveRangerId();
+            if (TextUtils.isEmpty(rangerId) || !rangerId.equals(FirebaseAuth.getInstance().getUid())) {
+                return Result.success();
+            }
             List<SightingEntity> sightings = new ArrayList<>();
             List<PatrolLogEntity> patrolLogs = new ArrayList<>();
             List<HealthObservationEntity> healthObservations = new ArrayList<>();
@@ -49,7 +55,7 @@ public final class FetchRemoteSightingsWorker extends Worker {
                     sightings.add(new SightingEntity(
                             recordId,
                             doc.getId(),
-                            safe(doc.getString("authorId")),
+                            rangerId,
                             doc.getString("authorDisplayName"),
                             doc.getString("title"),
                             doc.getString("summary"),
@@ -68,7 +74,7 @@ public final class FetchRemoteSightingsWorker extends Worker {
                     patrolLogs.add(new PatrolLogEntity(
                             recordId,
                             doc.getId(),
-                            safe(doc.getString("authorId")),
+                            rangerId,
                             doc.getString("authorDisplayName"),
                             doc.getString("title"),
                             doc.getString("summary"),
@@ -82,6 +88,7 @@ public final class FetchRemoteSightingsWorker extends Worker {
                 } else if (RecordType.HEALTH_OBSERVATION.equals(type)) {
                     healthObservations.add(new HealthObservationEntity(
                             recordId,
+                            rangerId,
                             doc.getId(),
                             doc.getString("authorId"),
                             doc.getString("authorDisplayName"),
@@ -101,7 +108,7 @@ public final class FetchRemoteSightingsWorker extends Worker {
             repository.mergeRemotePatrolLogs(patrolLogs);
             repository.mergeRemoteHealthObservations(healthObservations);
 
-            String userId = FirebaseAuth.getInstance().getUid();
+            String userId = rangerId;
             if (!TextUtils.isEmpty(userId)) {
                 List<AppNotificationEntity> notifications = new ArrayList<>();
                 for (QueryDocumentSnapshot doc : Tasks.await(FirebaseFirestore.getInstance()
@@ -111,6 +118,7 @@ public final class FetchRemoteSightingsWorker extends Worker {
                         .get())) {
                     notifications.add(new AppNotificationEntity(
                             doc.getId(),
+                            userId,
                             userId,
                             doc.getString("actorUserId"),
                             doc.getString("actorName"),
@@ -136,7 +144,4 @@ public final class FetchRemoteSightingsWorker extends Worker {
         return value == null ? 0.0 : value;
     }
 
-    private static String safe(String value) {
-        return value == null ? "" : value;
-    }
 }

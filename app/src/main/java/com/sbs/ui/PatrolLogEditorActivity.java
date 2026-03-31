@@ -11,6 +11,7 @@ import com.google.android.material.textfield.TextInputEditText;
 import com.sbs.R;
 import com.sbs.data.AppRepository;
 import com.sbs.data.PatrolLogRecord;
+import com.sbs.data.RangerSessionManager;
 import com.sbs.data.SyncScheduler;
 
 public class PatrolLogEditorActivity extends BaseActivity {
@@ -29,7 +30,7 @@ public class PatrolLogEditorActivity extends BaseActivity {
         applyWindowInsets(findViewById(R.id.toolbar).getRootView());
 
         repository = AppRepository.getInstance(this);
-        authorId = FirebaseAuth.getInstance().getUid();
+        authorId = new RangerSessionManager(this).getActiveRangerId();
         if (authorId == null) {
             finish();
             return;

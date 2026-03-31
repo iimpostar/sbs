@@ -7,6 +7,7 @@ import android.text.TextUtils;
 
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MediatorLiveData;
+import androidx.lifecycle.MutableLiveData;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
@@ -32,11 +33,15 @@ public final class AppRepository {
     private static volatile AppRepository instance;
 
     private final AppDatabase database;
+    private final RangerSessionManager sessionManager;
+    private final Context appContext;
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private AppRepository(Context context) {
+        appContext = context.getApplicationContext();
         database = AppDatabase.getInstance(context);
+        sessionManager = new RangerSessionManager(context);
         io.execute(() -> LegacyDataImporter.importIfNeeded(context.getApplicationContext(), database));
     }
 
@@ -52,26 +57,38 @@ public final class AppRepository {
     }
 
     public LiveData<List<SightingRecord>> observeSightings() {
+        String rangerId = getRequiredRangerId();
+        if (rangerId == null) {
+            return new MutableLiveData<>(new ArrayList<>());
+        }
         MediatorLiveData<List<SightingRecord>> liveData = new MediatorLiveData<>();
-        liveData.addSource(database.sightingDao().observeAll(), entities -> liveData.setValue(mapSightings(entities)));
+        liveData.addSource(database.sightingDao().observeByRangerId(rangerId), entities -> liveData.setValue(mapSightings(entities)));
         return liveData;
     }
 
     public LiveData<List<PatrolLogRecord>> observePatrolLogs() {
+        String rangerId = getRequiredRangerId();
+        if (rangerId == null) {
+            return new MutableLiveData<>(new ArrayList<>());
+        }
         MediatorLiveData<List<PatrolLogRecord>> liveData = new MediatorLiveData<>();
-        liveData.addSource(database.patrolLogDao().observeAll(), entities -> liveData.setValue(mapPatrolLogs(entities)));
+        liveData.addSource(database.patrolLogDao().observeByRangerId(rangerId), entities -> liveData.setValue(mapPatrolLogs(entities)));
         return liveData;
     }
 
     public LiveData<List<HealthObservationRecord>> observeHealthObservations() {
+        String rangerId = getRequiredRangerId();
+        if (rangerId == null) {
+            return new MutableLiveData<>(new ArrayList<>());
+        }
         MediatorLiveData<List<HealthObservationRecord>> liveData = new MediatorLiveData<>();
-        liveData.addSource(database.healthObservationDao().observeAll(), entities -> liveData.setValue(mapHealthObservations(entities)));
+        liveData.addSource(database.healthObservationDao().observeByRangerId(rangerId), entities -> liveData.setValue(mapHealthObservations(entities)));
         return liveData;
     }
 
     public LiveData<List<AppNotificationRecord>> observeNotifications(String recipientUserId) {
         MediatorLiveData<List<AppNotificationRecord>> liveData = new MediatorLiveData<>();
-        liveData.addSource(database.appNotificationDao().observeByRecipient(recipientUserId), entities -> liveData.setValue(mapNotifications(entities)));
+        liveData.addSource(database.appNotificationDao().observeByRangerId(recipientUserId), entities -> liveData.setValue(mapNotifications(entities)));
         return liveData;
     }
 
@@ -80,15 +97,18 @@ public final class AppRepository {
     }
 
     public void loadSighting(String localId, RecordCallback<SightingRecord> callback) {
-        io.execute(() -> post(callback, toRecord(database.sightingDao().getById(localId))));
+        String rangerId = getRequiredRangerId();
+        io.execute(() -> post(callback, rangerId == null ? null : toRecord(database.sightingDao().getById(rangerId, localId))));
     }
 
     public void loadPatrolLog(String localId, RecordCallback<PatrolLogRecord> callback) {
-        io.execute(() -> post(callback, toRecord(database.patrolLogDao().getById(localId))));
+        String rangerId = getRequiredRangerId();
+        io.execute(() -> post(callback, rangerId == null ? null : toRecord(database.patrolLogDao().getById(rangerId, localId))));
     }
 
     public void loadHealthObservation(String localId, RecordCallback<HealthObservationRecord> callback) {
-        io.execute(() -> post(callback, toRecord(database.healthObservationDao().getById(localId))));
+        String rangerId = getRequiredRangerId();
+        io.execute(() -> post(callback, rangerId == null ? null : toRecord(database.healthObservationDao().getById(rangerId, localId))));
     }
 
     public void saveSighting(
@@ -108,7 +128,7 @@ public final class AppRepository {
         io.execute(() -> {
             long now = System.currentTimeMillis();
             String id = TextUtils.isEmpty(localId) ? UUID.randomUUID().toString() : localId;
-            SightingEntity current = database.sightingDao().getById(id);
+            SightingEntity current = database.sightingDao().getById(authorId, id);
             upsertRanger(resolveCurrentUser());
             SightingEntity entity = new SightingEntity(
                     id,
@@ -146,7 +166,7 @@ public final class AppRepository {
         io.execute(() -> {
             long now = System.currentTimeMillis();
             String id = TextUtils.isEmpty(localId) ? UUID.randomUUID().toString() : localId;
-            PatrolLogEntity current = database.patrolLogDao().getById(id);
+            PatrolLogEntity current = database.patrolLogDao().getById(authorId, id);
             upsertRanger(resolveCurrentUser());
             PatrolLogEntity entity = new PatrolLogEntity(
                     id,
@@ -180,10 +200,11 @@ public final class AppRepository {
         io.execute(() -> {
             long now = System.currentTimeMillis();
             String id = TextUtils.isEmpty(localId) ? UUID.randomUUID().toString() : localId;
-            HealthObservationEntity current = database.healthObservationDao().getById(id);
+            HealthObservationEntity current = database.healthObservationDao().getById(authorId, id);
             upsertRanger(resolveCurrentUser());
             HealthObservationEntity entity = new HealthObservationEntity(
                     id,
+                    authorId,
                     current != null ? current.remoteId : null,
                     authorId,
                     resolveAuthorName(),
@@ -202,15 +223,24 @@ public final class AppRepository {
     }
 
     public void deleteSighting(String localId) {
-        io.execute(() -> database.sightingDao().delete(localId));
+        String rangerId = getRequiredRangerId();
+        io.execute(() -> {
+            if (rangerId != null) database.sightingDao().delete(rangerId, localId);
+        });
     }
 
     public void deletePatrolLog(String localId) {
-        io.execute(() -> database.patrolLogDao().delete(localId));
+        String rangerId = getRequiredRangerId();
+        io.execute(() -> {
+            if (rangerId != null) database.patrolLogDao().delete(rangerId, localId);
+        });
     }
 
     public void deleteHealthObservation(String localId) {
-        io.execute(() -> database.healthObservationDao().delete(localId));
+        String rangerId = getRequiredRangerId();
+        io.execute(() -> {
+            if (rangerId != null) database.healthObservationDao().delete(rangerId, localId);
+        });
     }
 
     public void upsertRanger(FirebaseUser user) {
@@ -225,6 +255,9 @@ public final class AppRepository {
                 now,
                 now
         ));
+        sessionManager.registerKnownRanger(user.getUid());
+        sessionManager.setActiveRangerId(user.getUid());
+        RangerFileManager.ensureRangerRoot(appContext, user.getUid());
     }
 
     public void upsertCurrentRanger() {
@@ -232,15 +265,18 @@ public final class AppRepository {
     }
 
     public List<SightingEntity> getPendingSightings(int limit) {
-        return database.sightingDao().getPending(new String[]{SyncState.PENDING, SyncState.FAILED}, limit);
+        String rangerId = getRequiredRangerId();
+        return rangerId == null ? new ArrayList<>() : database.sightingDao().getPending(rangerId, new String[]{SyncState.PENDING, SyncState.FAILED}, limit);
     }
 
     public List<PatrolLogEntity> getPendingPatrolLogs(int limit) {
-        return database.patrolLogDao().getPending(new String[]{SyncState.PENDING, SyncState.FAILED}, limit);
+        String rangerId = getRequiredRangerId();
+        return rangerId == null ? new ArrayList<>() : database.patrolLogDao().getPending(rangerId, new String[]{SyncState.PENDING, SyncState.FAILED}, limit);
     }
 
     public List<HealthObservationEntity> getPendingHealthObservations(int limit) {
-        return database.healthObservationDao().getPending(new String[]{SyncState.PENDING, SyncState.FAILED}, limit);
+        String rangerId = getRequiredRangerId();
+        return rangerId == null ? new ArrayList<>() : database.healthObservationDao().getPending(rangerId, new String[]{SyncState.PENDING, SyncState.FAILED}, limit);
     }
 
     public void markSightingSyncing(SightingEntity entity) {
@@ -299,7 +335,7 @@ public final class AppRepository {
 
     public void mergeRemoteSightings(List<SightingEntity> entities) {
         for (SightingEntity entity : entities) {
-            SightingEntity local = database.sightingDao().getById(entity.localId);
+            SightingEntity local = database.sightingDao().getById(entity.rangerId, entity.localId);
             if (shouldReplace(local, entity.lastModifiedAt)) {
                 database.sightingDao().upsert(entity);
             }
@@ -308,7 +344,7 @@ public final class AppRepository {
 
     public void mergeRemotePatrolLogs(List<PatrolLogEntity> entities) {
         for (PatrolLogEntity entity : entities) {
-            PatrolLogEntity local = database.patrolLogDao().getById(entity.localId);
+            PatrolLogEntity local = database.patrolLogDao().getById(entity.rangerId, entity.localId);
             if (shouldReplace(local, entity.lastModifiedAt)) {
                 database.patrolLogDao().upsert(entity);
             }
@@ -317,7 +353,7 @@ public final class AppRepository {
 
     public void mergeRemoteHealthObservations(List<HealthObservationEntity> entities) {
         for (HealthObservationEntity entity : entities) {
-            HealthObservationEntity local = database.healthObservationDao().getById(entity.localId);
+            HealthObservationEntity local = database.healthObservationDao().getById(entity.rangerId, entity.localId);
             if (shouldReplace(local, entity.lastModifiedAt)) {
                 database.healthObservationDao().upsert(entity);
             }
@@ -342,6 +378,27 @@ public final class AppRepository {
 
     public void markNotificationSystemNotified(String notificationId) {
         database.appNotificationDao().markSystemNotified(notificationId);
+    }
+
+    public LiveData<List<RangerEntity>> observeKnownRangers() {
+        return database.rangerDao().observeAll();
+    }
+
+    public void switchActiveRanger(String rangerId) {
+        sessionManager.setActiveRangerId(rangerId);
+        RangerFileManager.ensureRangerRoot(appContext, rangerId);
+    }
+
+    public String getActiveRangerId() {
+        return sessionManager.getActiveRangerId();
+    }
+
+    public void removeRanger(String rangerId) {
+        io.execute(() -> {
+            database.rangerDao().deleteById(rangerId);
+            RangerFileManager.deleteRangerRoot(appContext, rangerId);
+            sessionManager.removeKnownRanger(rangerId);
+        });
     }
 
     public void runOnIo(Runnable action) {
@@ -375,6 +432,15 @@ public final class AppRepository {
 
     private static FirebaseUser resolveCurrentUser() {
         return FirebaseAuth.getInstance().getCurrentUser();
+    }
+
+    private String getRequiredRangerId() {
+        String rangerId = sessionManager.getActiveRangerId();
+        if (!TextUtils.isEmpty(rangerId)) {
+            return rangerId;
+        }
+        FirebaseUser user = resolveCurrentUser();
+        return user == null ? null : user.getUid();
     }
 
     private static String resolveAuthorName() {

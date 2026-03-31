@@ -20,6 +20,7 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.GravityCompat;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.lifecycle.ViewModelProvider;
 
 import com.bumptech.glide.Glide;
 import com.google.firebase.auth.FirebaseAuth;
@@ -29,8 +30,10 @@ import com.sbs.R;
 import com.sbs.data.AppRepository;
 import com.sbs.data.AppSettingsManager;
 import com.sbs.data.RecordType;
+import com.sbs.data.RangerSessionManager;
 import com.sbs.data.RealtimeSyncManager;
 import com.sbs.data.SightingRecord;
+import com.sbs.data.local.RangerEntity;
 import com.sbs.databinding.ActivityDashboardBinding;
 import com.sbs.notifications.FcmTokenManager;
 
@@ -53,6 +56,8 @@ public class DashboardActivity extends BaseActivity {
     private final List<Marker> savedSightingMarkers = new ArrayList<>();
     private boolean actionMenuOpen = false;
     private AppRepository repository;
+    private RangerSessionViewModel sessionViewModel;
+    private List<RangerEntity> knownRangers = new ArrayList<>();
 
     private static final String PREFS_DASHBOARD_STATE = "sbs_dashboard_state";
     private static final String KEY_MAP_LAT = "map_lat";
@@ -96,6 +101,7 @@ public class DashboardActivity extends BaseActivity {
 
         appSettingsManager = new AppSettingsManager(this);
         repository = AppRepository.getInstance(this);
+        sessionViewModel = new ViewModelProvider(this).get(RangerSessionViewModel.class);
         appSettingsManager.applyTheme();
 
         super.onCreate(savedInstanceState);
@@ -107,6 +113,10 @@ public class DashboardActivity extends BaseActivity {
         bindCurrentUserFooter();
         repository.upsertCurrentRanger();
         RealtimeSyncManager.getInstance(this).start();
+        repository.observeKnownRangers().observe(this, profiles -> {
+            knownRangers = profiles == null ? new ArrayList<>() : profiles;
+            bindCurrentUserFooter();
+        });
 
         int originalLeft = binding.sidePanel.getPaddingLeft();
         int originalTop = binding.sidePanel.getPaddingTop();
@@ -180,8 +190,9 @@ public class DashboardActivity extends BaseActivity {
         String recordType = intent.getStringExtra("record_type");
         String recordId = intent.getStringExtra("record_id");
         String notificationId = intent.getStringExtra("notification_id");
-        if (!TextUtils.isEmpty(notificationId) && FirebaseAuth.getInstance().getUid() != null) {
-            repository.markNotificationRead(FirebaseAuth.getInstance().getUid(), notificationId);
+        String activeRangerId = new RangerSessionManager(this).getActiveRangerId();
+        if (!TextUtils.isEmpty(notificationId) && activeRangerId != null) {
+            repository.markNotificationRead(activeRangerId, notificationId);
         }
         if (!TextUtils.isEmpty(recordType) && !TextUtils.isEmpty(recordId)) {
             Intent detailIntent = new Intent(this, RecordDetailActivity.class);
@@ -303,6 +314,8 @@ public class DashboardActivity extends BaseActivity {
         binding.actionMenuScrim.setOnClickListener(v -> closeActionMenu());
         binding.btnNotifications.setOnClickListener(v -> startActivity(new Intent(this, NotificationsActivity.class)));
         binding.btnThemeMode.setOnClickListener(v -> showThemePicker());
+        binding.ivUserAvatar.setOnClickListener(v -> showAccountSwitcher());
+        binding.tvUserName.setOnClickListener(v -> showAccountSwitcher());
 
         View.OnClickListener sightingClick = v -> {
             closeActionMenu();
@@ -340,11 +353,19 @@ public class DashboardActivity extends BaseActivity {
     }
 
     private void bindCurrentUserFooter() {
+        String activeRangerId = new RangerSessionManager(this).getActiveRangerId();
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
-        if (user != null) {
+        if (user != null && user.getUid().equals(activeRangerId)) {
             binding.tvUserName.setText(user.getDisplayName() != null ? user.getDisplayName() : user.getEmail());
             if (user.getPhotoUrl() != null) {
                 Glide.with(this).load(user.getPhotoUrl()).placeholder(R.drawable.bg_dashboard_avatar).into(binding.ivUserAvatar);
+            }
+            return;
+        }
+        for (RangerEntity ranger : knownRangers) {
+            if (ranger.rangerId.equals(activeRangerId)) {
+                binding.tvUserName.setText(ranger.fullName != null ? ranger.fullName : ranger.email);
+                break;
             }
         }
     }
@@ -417,7 +438,7 @@ public class DashboardActivity extends BaseActivity {
     }
 
     private void observeSightings() {
-        String rangerId = FirebaseAuth.getInstance().getUid();
+        String rangerId = new RangerSessionManager(this).getActiveRangerId();
         if (rangerId == null) {
             return;
         }
@@ -477,6 +498,63 @@ public class DashboardActivity extends BaseActivity {
                         appSettingsManager.setThemeMode(AppSettingsManager.THEME_SYSTEM);
                     }
                     appSettingsManager.applyTheme();
+                })
+                .show();
+    }
+
+    private void showAccountSwitcher() {
+        ArrayList<String> items = new ArrayList<>();
+        String activeRangerId = new RangerSessionManager(this).getActiveRangerId();
+        for (RangerEntity ranger : knownRangers) {
+            items.add(ranger.fullName + (ranger.rangerId.equals(activeRangerId) ? " (Active)" : ""));
+        }
+        items.add("Add account");
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Ranger accounts")
+                .setItems(items.toArray(new CharSequence[0]), (dialog, which) -> {
+                    if (which == knownRangers.size()) {
+                        startActivity(new Intent(this, LoginActivity.class).putExtra("add_account", true));
+                        return;
+                    }
+                    RangerEntity selected = knownRangers.get(which);
+                    sessionViewModel.setActiveRangerId(selected.rangerId);
+                    repository.switchActiveRanger(selected.rangerId);
+                    if (!selected.rangerId.equals(FirebaseAuth.getInstance().getUid())) {
+                        startActivity(new Intent(this, LoginActivity.class)
+                                .putExtra("switch_account", true)
+                                .putExtra("requested_ranger_id", selected.rangerId));
+                        finish();
+                        return;
+                    }
+                    recreate();
+                })
+                .setNeutralButton("Remove account", (dialog, which) -> showRemoveAccountDialog())
+                .show();
+    }
+
+    private void showRemoveAccountDialog() {
+        if (knownRangers.isEmpty()) return;
+        CharSequence[] items = new CharSequence[knownRangers.size()];
+        for (int i = 0; i < knownRangers.size(); i++) {
+            items[i] = knownRangers.get(i).fullName;
+        }
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Remove ranger")
+                .setItems(items, (dialog, which) -> {
+                    RangerEntity selected = knownRangers.get(which);
+                    new androidx.appcompat.app.AlertDialog.Builder(this)
+                            .setTitle("Remove " + selected.fullName + "?")
+                            .setMessage("This deletes only this ranger’s local data on this device.")
+                            .setPositiveButton(R.string.delete, (confirmDialog, confirmWhich) -> {
+                                repository.removeRanger(selected.rangerId);
+                                if (selected.rangerId.equals(FirebaseAuth.getInstance().getUid())) {
+                                    FirebaseAuth.getInstance().signOut();
+                                }
+                                startActivity(new Intent(this, LoginActivity.class));
+                                finish();
+                            })
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .show();
                 })
                 .show();
     }

@@ -10,12 +10,12 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.firebase.auth.FirebaseAuth;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.sbs.R;
 import com.sbs.data.AppRepository;
 import com.sbs.data.PatrolLogRecord;
+import com.sbs.data.RangerSessionManager;
 
 public class PatrolLogsActivity extends BaseActivity implements PatrolLogsAdapter.LogActionListener {
 
@@ -35,7 +35,7 @@ public class PatrolLogsActivity extends BaseActivity implements PatrolLogsAdapte
         applyWindowInsets(findViewById(R.id.toolbar).getRootView());
 
         repository = AppRepository.getInstance(this);
-        currentUserId = FirebaseAuth.getInstance().getUid();
+        currentUserId = new RangerSessionManager(this).getActiveRangerId();
         if (currentUserId == null) {
             finish();
             return;

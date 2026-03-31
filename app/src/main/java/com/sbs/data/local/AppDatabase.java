@@ -17,7 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
                 HealthObservationEntity.class,
                 AppNotificationEntity.class
         },
-        version = 3,
+        version = 4,
         exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {
@@ -54,6 +54,19 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     };
 
+    public static final Migration MIGRATION_3_4 = new Migration(3, 4) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE health_observations ADD COLUMN rangerId TEXT NOT NULL DEFAULT ''");
+            database.execSQL("ALTER TABLE app_notifications ADD COLUMN rangerId TEXT NOT NULL DEFAULT ''");
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_health_observations_rangerId` ON `health_observations` (`rangerId`)");
+            database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_health_observations_rangerId_remoteId` ON `health_observations` (`rangerId`, `remoteId`)");
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_health_observations_rangerId_timestamp` ON `health_observations` (`rangerId`, `timestamp`)");
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_app_notifications_rangerId` ON `app_notifications` (`rangerId`)");
+            database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_app_notifications_rangerId_recordId_recordType` ON `app_notifications` (`rangerId`, `recordId`, `recordType`)");
+        }
+    };
+
     private static volatile AppDatabase instance;
 
     public abstract RangerDao rangerDao();
@@ -77,6 +90,7 @@ public abstract class AppDatabase extends RoomDatabase {
                             )
                             .addMigrations(MIGRATION_1_2)
                             .addMigrations(MIGRATION_2_3)
+                            .addMigrations(MIGRATION_3_4)
                             .build();
                 }
             }

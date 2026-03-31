@@ -10,6 +10,7 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.sbs.R;
 import com.sbs.data.AppRepository;
+import com.sbs.data.RangerSessionManager;
 import com.sbs.data.SightingRecord;
 import com.sbs.data.SyncScheduler;
 
@@ -32,7 +33,7 @@ public class SightingEditorActivity extends BaseActivity {
         applyWindowInsets(findViewById(R.id.toolbar).getRootView());
 
         repository = AppRepository.getInstance(this);
-        authorId = FirebaseAuth.getInstance().getUid();
+        authorId = new RangerSessionManager(this).getActiveRangerId();
         if (authorId == null) {
             finish();
             return;

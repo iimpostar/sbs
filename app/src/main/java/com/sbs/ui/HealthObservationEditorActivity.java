@@ -6,10 +6,10 @@ import android.widget.Toast;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.textfield.TextInputEditText;
-import com.google.firebase.auth.FirebaseAuth;
 import com.sbs.R;
 import com.sbs.data.AppRepository;
 import com.sbs.data.HealthObservationRecord;
+import com.sbs.data.RangerSessionManager;
 import com.sbs.data.SyncScheduler;
 
 public final class HealthObservationEditorActivity extends BaseActivity {
@@ -30,7 +30,7 @@ public final class HealthObservationEditorActivity extends BaseActivity {
         applyWindowInsets(findViewById(R.id.toolbar).getRootView());
 
         repository = AppRepository.getInstance(this);
-        authorId = FirebaseAuth.getInstance().getUid();
+        authorId = new RangerSessionManager(this).getActiveRangerId();
         if (authorId == null) {
             finish();
             return;

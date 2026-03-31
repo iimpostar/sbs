@@ -7,10 +7,10 @@ import android.view.View;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.google.android.material.appbar.MaterialToolbar;
-import com.google.firebase.auth.FirebaseAuth;
 import com.sbs.R;
 import com.sbs.data.AppNotificationRecord;
 import com.sbs.data.AppRepository;
+import com.sbs.data.RangerSessionManager;
 import com.sbs.data.RealtimeSyncManager;
 
 public final class NotificationsActivity extends BaseActivity implements NotificationsAdapter.NotificationClickListener {
@@ -30,7 +30,7 @@ public final class NotificationsActivity extends BaseActivity implements Notific
         applyWindowInsets(findViewById(R.id.toolbar).getRootView());
 
         repository = AppRepository.getInstance(this);
-        userId = FirebaseAuth.getInstance().getUid();
+        userId = new RangerSessionManager(this).getActiveRangerId();
         if (userId == null) {
             finish();
             return;

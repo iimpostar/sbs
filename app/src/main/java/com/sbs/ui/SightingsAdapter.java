@@ -11,8 +11,8 @@ import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.ListAdapter;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.firebase.auth.FirebaseAuth;
 import com.sbs.R;
+import com.sbs.data.RangerSessionManager;
 import com.sbs.data.SightingRecord;
 import com.sbs.data.SyncState;
 
@@ -100,7 +100,8 @@ public final class SightingsAdapter extends ListAdapter<SightingRecord, Sighting
 
             itemView.setOnClickListener(v -> actionListener.onOpen(record));
 
-            boolean canEdit = record.authorId != null && record.authorId.equals(FirebaseAuth.getInstance().getUid());
+            String activeRangerId = new RangerSessionManager(itemView.getContext()).getActiveRangerId();
+            boolean canEdit = record.authorId != null && record.authorId.equals(activeRangerId);
             actions.setVisibility(canEdit ? View.VISIBLE : View.GONE);
             edit.setOnClickListener(v -> actionListener.onEdit(record));
             delete.setOnClickListener(v -> actionListener.onDelete(record));

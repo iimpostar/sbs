@@ -13,6 +13,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.SetOptions;
 import com.sbs.data.AppRepository;
 import com.sbs.data.RecordType;
+import com.sbs.data.RangerSessionManager;
 import com.sbs.data.local.HealthObservationEntity;
 import com.sbs.data.local.PatrolLogEntity;
 import com.sbs.data.local.SightingEntity;
@@ -34,6 +35,11 @@ public final class UploadPendingDataWorker extends Worker {
     public Result doWork() {
         if (getBatteryPercent() < 20) {
             return Result.retry();
+        }
+
+        String activeRangerId = new RangerSessionManager(getApplicationContext()).getActiveRangerId();
+        if (activeRangerId == null || FirebaseAuth.getInstance().getUid() == null || !activeRangerId.equals(FirebaseAuth.getInstance().getUid())) {
+            return Result.success();
         }
 
         AppRepository repository = AppRepository.getInstance(getApplicationContext());
